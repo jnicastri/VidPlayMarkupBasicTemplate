@@ -2,17 +2,19 @@
 <html>
     <head>
         <style type="text/css">
-            .video-player-container{
+            #video-player-container{
                 width:720px;
                 height:auto;
                 position:relative;
+                background:black;
+                color: gray;
+                font-family: Arial;
             }
 
             .video-element{
                 object-fit: cover;
                 width: 100%;
                 height: auto;
-            
             }
 
             .video-overlay-container {
@@ -22,8 +24,12 @@
                 width: 100%;
                 height: 100%;
                 z-index: 10;
-                color:aliceblue;
-                /*background-color: rgba(0,0,0,0.5); */ /*dim the background*/
+                display: none;
+            }
+
+            .title-banner{
+                padding: 5px;
+                background-color: rgba(0,0,0,0.5);
             }
 
             .video-overlay-bottom-container{
@@ -31,45 +37,152 @@
                 bottom: 0;
                 background-color: rgba(0,0,0,0.5);
                 width: 100%;
-                color:aliceblue;
                 position:absolute;
+                padding: 5px 0;
+                margin-bottom: 3px;
+            }
+
+            #buffer-strip { 
+                height: 20px; 
+                position: relative;
+                background: #555;
+                width: 720px;
+                margin-top: -4px;
+            }
+
+            #buffer-value {
+                display: block;
+                height: 100%;
+                background-color: #777;
+                width: 0;
+            }
+
+            #progress-strip { 
+                margin-top: -20px;
+                height: 20px;  
+                position: relative;
+                width: 720px;
+            }
+
+            #progress-value {
+                display: block;
+                height: 100%;
+                background-color: #595;
+                width: 0;
             }
         </style>
     </head>
     <body>
-        <div class="video-player-container">
-           
-
-            <video id="main-vid" class="video-element">
-                <source src="Videofile.mp4" type="video/mp4" />
-                Unsupported!
-            </video>
-            <div class="video-overlay-container">This the player Top
-                <div class="video-overlay-bottom-container">
-                    <div style="float:left;"><button onclick="javascript:video_play();">Play</button></div>
-                    <div style="float:right;"><button onclick="javascript:video_pause();">Pause</button></div>
-                    <div style="clear:both;"></div>
+        <div id="video-ctrl">
+            <div id="video-player-container">
+                <video id="main-vid" class="video-element">Unsupported Content Type</video>
+                <div class="video-overlay-container">
+                    <div class="title-banner">Title banner</div>
+                    <div class="video-overlay-bottom-container">
+                        <div style="float:left;"><button id="play-btn">Play</button></div>
+                        <div style="float:left;"><button id="pause-btn">Pause</button></div>
+                        <div style="float:left;" id="presentation-time">00:00:00</div>
+                        <div style="float:right;"><button id="vol-inc-btn">Vol+</button></div>
+                        <div style="float:right;"><button id="vol-dec-btn">Vol-</button></div>
+                        <div style="clear:both;"></div>
+                    </div>
                 </div>
             </div>
-
+            
+            <div id="buffer-strip"><span id="buffer-value"></span></div>
+            <div id="progress-strip"><span id="progress-value"></span></div>
         </div>
-        <div id="playTime"></div>
+        
+        
         <script type="text/javascript">
             var vid = document.getElementById("main-vid");
 
-            //vid.onplay = function(){ alert('playing now');};
-            vid.ontimeupdate = function(){ updatePresoTime(vid); }
+            // Media
+            var mediaUrl ="https://upload.wikimedia.org/wikipedia/commons/9/9a/11742_SDO-Year_5_ProRes_1920x1080_2997.webm";
+            //var mediaUrl = 'https://upload.wikimedia.org/wikipedia/commons/transcoded/0/09/Bigelow_Expandable_Activity_Module_Installation_Animation.webm/Bigelow_Expandable_Activity_Module_Installation_Animation.webm.360p.vp9.webm';
+            vid.src = mediaUrl;
+            vid.mimeType = "video/webm";
 
-            function video_play(){
-                document.getElementById("main-vid").play();
+            // Control elements
+            var progressBar = document.getElementById('progress-strip');
+            var progressBarVal = document.getElementById('progress-value');
+            var bufferProgressBarVal = document.getElementById('buffer-value');
+            var playBtn = document.getElementById('play-btn');
+            var pauseBtn = document.getElementById('pause-btn');
+            var volUpBtn = document.getElementById('vol-inc-btn');
+            var volDownBtn = document.getElementById('vol-dec-btn');
+            var presoTime = document.getElementById('presentation-time');
+            var videoPlayer = document.getElementById("video-player-container");
+            var controlLayer = document.getElementsByClassName("video-overlay-container")[0];
+
+            // Listeners
+            vid.addEventListener('progress', function() {
+                var bufferedEnd = vid.buffered.end(vid.buffered.length - 1);
+                var duration = vid.duration;
+                if (duration > 0) {
+                    bufferProgressBarVal.style.width = ((bufferedEnd / duration)*100) + "%";
+                }
+            });
+
+            vid.addEventListener('timeupdate', function() {
+                presoTime.innerHTML = new Date(vid.currentTime * 1000).toISOString().substr(11, 8);
+                var duration =  vid.duration;
+                if (duration > 0) {
+                    progressBarVal.style.width = ((vid.currentTime / duration)*100) + "%";
+                }
+            });
+
+            progressBar.addEventListener('click', function(e) {
+                var pos = (e.pageX  - this.offsetLeft) / this.offsetWidth;
+                vid.currentTime = pos * vid.duration;
+            });
+
+            videoPlayer.onmouseover = function(){ controlLayer.style.display = 'block'; };
+            videoPlayer.onmouseout = function(){ controlLayer.style.display = 'none'; }
+
+            volUpBtn.addEventListener('click', function(e) { stepVolume('up'); });
+            volDownBtn.addEventListener('click', function(e) { stepVolume('down'); });
+            playBtn.addEventListener('click', function(e) { vid.play(); });
+            pauseBtn.addEventListener('click', function(e) { vid.pause(); });
+
+            // Events
+
+            // Functions            
+            //fetchVideo(vid, mediaUrl, "video/webm");
+
+            function stepVolume(direction) {
+                var startVol = Math.floor(vid.volume * 10) / 10;
+                if (direction === 'up') {
+                    if (startVol < 1) vid.volume += 0.1;
+                }
+                else if (direction === 'down') {
+                    if (startVol > 0) vid.volume -= 0.1;
+                }
             }
 
-            function video_pause(){
-                document.getElementById("main-vid").pause();
-            }
+            function fetchVideo(videoElement, mediaSourcePath, mimeType){
+                var xhr = new XMLHttpRequest();
+                xhr.responseType = 'blob';
 
-            function updatePresoTime(v){
-                document.getElementById("playTime").innerHTML = v.currentTime;
+                xhr.onload = function() {
+                    var rdr = new FileReader();
+                    rdr.onloadend = function() {
+                        var byteChars = atob(rdr.result.slice(rdr.result.indexOf(',') + 1));
+                        var byteNums = new Array(byteChars.length);
+
+                        for (var i = 0; i < byteChars.length; i++) {
+                            byteNums[i] = byteChars.charCodeAt(i);
+                        }
+
+                        var bytes = new Uint8Array(byteNums);
+                        var blob = new Blob([bytes], {type: mimeType});
+                        var url = URL.createObjectURL(blob);
+                        videoElement.src = url;
+                    }
+                    rdr.readAsDataURL(xhr.response);
+                };
+                xhr.open('GET', mediaSourcePath);
+                xhr.send();
             }
         </script>
     </body>
